@@ -3,7 +3,6 @@ import { computed, onMounted, ref } from "vue"
 import DatePicker from "../components/DatePicker.vue"
 import SiteHeader from "../components/SiteHeader.vue"
 import TagPicker from "../components/TagPicker.vue"
-import UploadAuthDialog from "../components/UploadAuthDialog.vue"
 import { fetchSiteConfig, queryPictures } from "../lib/api"
 import {
   formatBytes,
@@ -11,10 +10,6 @@ import {
   pictureResolution,
 } from "../lib/format"
 import type { Picture, PictureQuery, SiteConfig, StatusTone } from "../types"
-
-type UploadDialogInstance = {
-  open: () => Promise<void>
-}
 
 const config = ref<SiteConfig | null>(null)
 const configStatus = ref("正在读取归档信息…")
@@ -28,7 +23,6 @@ const hasSearched = ref(false)
 const querying = ref(false)
 const queryStatus = ref("")
 const queryTone = ref<StatusTone>("idle")
-const uploadDialog = ref<UploadDialogInstance | null>(null)
 let configRequest: Promise<void> | null = null
 
 const rangeText = computed(() => {
@@ -125,13 +119,6 @@ function hideBrokenImage(event: Event): void {
   }
 }
 
-async function openUploadDialog(): Promise<void> {
-  if (!config.value) {
-    await loadConfig()
-  }
-  await uploadDialog.value?.open()
-}
-
 onMounted(() => {
   void loadConfig()
 })
@@ -140,14 +127,10 @@ onMounted(() => {
 <template>
   <div class="site-shell">
     <SiteHeader>
-      <button
-        type="button"
-        class="header-action"
-        @click="void openUploadDialog()"
-      >
+      <a class="header-action" href="/upload">
         上传图片
         <span aria-hidden="true">↗</span>
-      </button>
+      </a>
     </SiteHeader>
 
     <main>
@@ -321,9 +304,4 @@ onMounted(() => {
       <p>YAJU ARCHIVE · GuestLiang</p>
     </footer>
   </div>
-
-  <UploadAuthDialog
-    ref="uploadDialog"
-    :site-key="config?.turnstileSiteKey ?? ''"
-  />
 </template>

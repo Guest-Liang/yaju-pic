@@ -6,6 +6,8 @@ import type {
 } from "./types"
 
 const PICTURES_TABLE = "pictures"
+export const QUERY_PAGE_SIZE = 50
+const MAX_TAG_LENGTH = 32
 const SEARCHABLE_PICTURE_NAME = `replace(
   replace(name, '(', '（'),
   ')',
@@ -25,7 +27,12 @@ interface CountResult {
 }
 
 type QueryResult =
-  | { results: PictureRecord[]; error?: never; status?: never }
+  | {
+      results: PictureRecord[]
+      done: boolean
+      error?: never
+      status?: never
+    }
   | { error: string; status: number; results?: never }
 
 export async function getPictureDateRange(env: Env): Promise<PictureDateRange> {
@@ -55,11 +62,13 @@ export async function queryPictures(
     endDate,
     rawTag,
     rawOrientation,
+    offset,
   }: {
     startDate: string
     endDate: string
     rawTag: string
     rawOrientation: string
+    offset: number
   },
 ): Promise<QueryResult> {
   if (!startDate && !endDate && !rawTag && !rawOrientation) {
@@ -84,6 +93,13 @@ export async function queryPictures(
       .split(",")
       .map((tag) => tag.trim())
       .filter(Boolean)
+
+    if (tags.some((tag) => [...tag].length > MAX_TAG_LENGTH)) {
+      return {
+        error: `单个关键词不能超过 ${MAX_TAG_LENGTH} 个字符`,
+        status: 400,
+      }
+    }
 
     for (const tag of tags) {
       const escapedTag = escapeLikeValue(normalizeTagForSearch(tag))
@@ -113,13 +129,19 @@ export async function queryPictures(
   const query = `SELECT ${PICTURE_COLUMNS}
     FROM ${PICTURES_TABLE}
     WHERE ${conditions.join(" AND ")}
-    ORDER BY substr(name, 1, 10) DESC, id DESC`
+    ORDER BY substr(name, 1, 10) DESC, id DESC
+    LIMIT ? OFFSET ?`
+  params.push(QUERY_PAGE_SIZE + 1, offset)
   const raw = await env.yaju_pic_db
     .prepare(query)
     .bind(...params)
     .all<PictureRecord>()
 
-  return { results: raw.results ?? [] }
+  const page = raw.results ?? []
+  return {
+    results: page.slice(0, QUERY_PAGE_SIZE),
+    done: page.length <= QUERY_PAGE_SIZE,
+  }
 }
 
 export async function insertPicture(

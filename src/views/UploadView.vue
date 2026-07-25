@@ -206,8 +206,11 @@ async function upload(): Promise<void> {
       uploadTone.value = "error"
     }
   } catch (error) {
-    if (error instanceof ApiError && error.status === 401) {
-      window.location.assign("/")
+    if (
+      error instanceof ApiError &&
+      (error.status === 401 || error.status === 403)
+    ) {
+      window.location.reload()
       return
     }
 
@@ -277,8 +280,11 @@ async function runConsistencyCheck(): Promise<void> {
     checkStatus.value = `检查完成：${matched} 条匹配，${missingItems.length} 条缺失`
     checkTone.value = missingItems.length ? "error" : "success"
   } catch (error) {
-    if (error instanceof ApiError && error.status === 401) {
-      window.location.assign("/")
+    if (
+      error instanceof ApiError &&
+      (error.status === 401 || error.status === 403)
+    ) {
+      window.location.reload()
       return
     }
     checkStatus.value =
@@ -536,8 +542,8 @@ onMounted(() => {
     </main>
 
     <footer class="site-footer">
-      <p>上传会话有效期为 2 小时</p>
-      <p>请勿在公共设备上保持上传页面开启</p>
+      <p>上传与检查接口由 Cloudflare Access 保护</p>
+      <p>仅授权账户可以访问</p>
     </footer>
   </div>
 </template>

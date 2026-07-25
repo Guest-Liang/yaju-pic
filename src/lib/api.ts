@@ -32,44 +32,44 @@ export async function fetchSiteConfig(): Promise<SiteConfig> {
   return {
     range: parseDateRange(record.range),
     tags: stringArray(record.tags),
-    turnstileSiteKey: stringField(record.turnstileSiteKey),
     upload: parseUploadLimits(record.upload),
   }
 }
 
 export async function queryPictures(query: PictureQuery): Promise<Picture[]> {
-  const { response, payload } = await requestJson("/api/query-pic", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(query),
-  })
-  if (!response.ok) {
-    throw responseError(payload, response.status, "查询失败")
-  }
-  if (!Array.isArray(payload)) {
-    throw new ApiError("查询结果格式错误", 502)
-  }
-  return payload.map(parsePicture)
-}
+  const results: Picture[] = []
+  let offset = 0
 
-export async function authorizeUpload(
-  password: string,
-  turnstileToken: string,
-): Promise<void> {
-  const { response, payload } = await requestJson("/api/upload-auth", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      password,
-      turnstileToken,
-    }),
-  })
-  if (!response.ok) {
-    throw responseError(payload, response.status, "验证失败")
+  while (true) {
+    const { response, payload } = await requestJson("/api/query-pic", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        ...query,
+        offset,
+      }),
+    })
+    if (!response.ok) {
+      throw responseError(payload, response.status, "查询失败")
+    }
+
+    const page = requireRecord(payload, "查询结果格式错误")
+    if (!Array.isArray(page.items) || typeof page.done !== "boolean") {
+      throw new ApiError("查询结果格式错误", 502)
+    }
+
+    results.push(...page.items.map(parsePicture))
+    if (page.done) {
+      return results
+    }
+
+    const nextOffset = Number(page.nextOffset)
+    if (!Number.isInteger(nextOffset) || nextOffset <= offset) {
+      throw new ApiError("查询分页信息格式错误", 502)
+    }
+    offset = nextOffset
   }
 }
 
@@ -83,10 +83,11 @@ export async function uploadPictures(
 
   const { response, payload } = await requestJson("/api/upload-pictures", {
     method: "POST",
+    headers: accessRequestHeaders(),
     body: formData,
   })
-  if (response.status === 401) {
-    throw new ApiError("登录已过期", 401)
+  if (response.status === 401 || response.status === 403) {
+    throw new ApiError("Cloudflare Access 登录已过期", response.status)
   }
 
   const parsed = parseUploadResponse(payload)
@@ -108,11 +109,12 @@ export async function checkUploadBatch(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      ...accessRequestHeaders(),
     },
     body: JSON.stringify({ offset, limit }),
   })
-  if (response.status === 401) {
-    throw new ApiError("登录已过期", 401)
+  if (response.status === 401 || response.status === 403) {
+    throw new ApiError("Cloudflare Access 登录已过期", response.status)
   }
   if (!response.ok) {
     throw responseError(payload, response.status, "一致性检查失败")
@@ -132,13 +134,22 @@ export async function checkUploadBatch(
   }
 }
 
+function accessRequestHeaders(): Record<string, string> {
+  return {
+    "X-Requested-With": "XMLHttpRequest",
+  }
+}
+
 async function requestJson(
   input: RequestInfo | URL,
   init: RequestInit,
 ): Promise<{ response: Response; payload: unknown }> {
   let response: Response
   try {
-    response = await fetch(input, init)
+    response = await fetch(input, {
+      credentials: "same-origin",
+      ...init,
+    })
   } catch {
     throw new ApiError("网络错误或服务暂时不可用", 0)
   }

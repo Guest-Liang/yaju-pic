@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from "vue"
 
+const MAX_TAG_LENGTH = 32
+
 const props = defineProps<{
   modelValue: string[]
   suggestions: string[]
@@ -183,6 +185,7 @@ function onBlur(): void {
           v-model="input"
           class="control tag-control"
           type="text"
+          :maxlength="MAX_TAG_LENGTH"
           role="combobox"
           autocomplete="off"
           aria-autocomplete="list"
@@ -240,7 +243,8 @@ function onBlur(): void {
     </div>
 
     <p class="field-help">
-      支持任意关键词；多个关键词按 AND 查询。方向键选择，Backspace删除最后一项。
+      单个关键词最多 32 字；多个关键词按 AND
+      查询。方向键选择，Backspace删除最后一项。
     </p>
   </div>
 </template>

@@ -33,7 +33,6 @@ export interface UploadLimits {
 export interface SiteConfig {
   range: PictureDateRange
   tags: string[]
-  turnstileSiteKey: string
   upload: UploadLimits
 }
 

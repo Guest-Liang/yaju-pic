@@ -1,9 +1,10 @@
-import { handleUploadAuth, requireUploadSession } from "./auth"
+import { hasUploadAccess } from "./access"
 import {
   countPictureRecords,
   getPictureDateRange,
   insertPicture,
   listPictureRecords,
+  QUERY_PAGE_SIZE,
   queryPictures,
 } from "./db"
 import {
@@ -23,11 +24,13 @@ import {
   objectExists,
   uploadObject,
 } from "./r2"
-import { jsonError, jsonResponse, redirectResponse } from "./responses"
+import { MAX_JSON_BODY_SIZE, readJsonRecord } from "./request"
+import { jsonError, jsonResponse } from "./responses"
 import { getTagSuggestions } from "./tags"
-import { isRecord, stringValue, type ObjectCheckResult } from "./types"
+import { stringValue, type ObjectCheckResult } from "./types"
 
 const MAX_REQUEST_SIZE = MAX_UPLOAD_SIZE + 1024 * 1024
+const MAX_QUERY_OFFSET = 100_000
 
 export async function handleRequest(
   request: Request,
@@ -44,7 +47,6 @@ export async function handleRequest(
         ok: true,
         range,
         tags,
-        turnstileSiteKey: env.TURNSTILE_SITE_KEY,
         upload: {
           maxFiles: MAX_UPLOAD_COUNT,
           maxFileSize: MAX_FILE_SIZE,
@@ -68,9 +70,15 @@ export async function handleRequest(
   }
 
   if (request.method === "POST" && pathname === "/api/query-pic") {
-    const body = await readJsonRecord(request)
-    if (!body) {
-      return jsonError("请求格式错误", 400)
+    const bodyResult = await readJsonRecord(request)
+    if (!bodyResult.ok) {
+      return jsonReadError(bodyResult.error)
+    }
+
+    const body = bodyResult.value
+    const offset = parseQueryOffset(body.offset)
+    if (offset === null) {
+      return jsonError(`查询偏移量必须是 0 到 ${MAX_QUERY_OFFSET} 的整数`, 400)
     }
 
     const result = await queryPictures(env, {
@@ -78,8 +86,9 @@ export async function handleRequest(
       endDate: stringValue(body.endDate),
       rawTag: stringValue(body.tag),
       rawOrientation: stringValue(body.orientation),
+      offset,
     })
-    if (result.error) {
+    if ("error" in result) {
       return jsonResponse(
         {
           error: result.error,
@@ -89,34 +98,39 @@ export async function handleRequest(
         },
       )
     }
-    return jsonResponse(result.results)
-  }
-
-  if (request.method === "POST" && pathname === "/api/upload-auth") {
-    return handleUploadAuth(request, env)
+    return jsonResponse({
+      items: result.results,
+      offset,
+      limit: QUERY_PAGE_SIZE,
+      done: result.done,
+      nextOffset: result.done ? null : offset + result.results.length,
+    })
   }
 
   if (request.method === "GET" && pathname === "/upload") {
-    if (!(await requireUploadSession(request, env))) {
-      return redirectResponse("/")
+    if (!(await hasUploadAccess(request, env))) {
+      return accessDeniedResponse()
     }
     return env.ASSETS.fetch(request)
   }
 
   if (request.method === "POST" && pathname === "/api/upload-pictures") {
-    if (!(await requireUploadSession(request, env))) {
-      return jsonError("未登录或登录已过期", 401)
+    if (!(await hasUploadAccess(request, env))) {
+      return accessDeniedResponse()
     }
     return handleUploadPictures(request, env)
   }
 
   if (request.method === "POST" && pathname === "/api/upload-check") {
-    if (!(await requireUploadSession(request, env))) {
-      return jsonError("未登录或登录已过期", 401)
+    if (!(await hasUploadAccess(request, env))) {
+      return accessDeniedResponse()
     }
 
-    const body = (await readJsonRecord(request)) ?? {}
-    return handleUploadCheck(env, body)
+    const bodyResult = await readJsonRecord(request)
+    if (!bodyResult.ok) {
+      return jsonReadError(bodyResult.error)
+    }
+    return handleUploadCheck(env, bodyResult.value)
   }
 
   if (pathname.startsWith("/api/")) {
@@ -301,15 +315,24 @@ async function runLimited<T, R>(
   return results
 }
 
-async function readJsonRecord(
-  request: Request,
-): Promise<Record<string, unknown> | null> {
-  try {
-    const value: unknown = await request.json()
-    return isRecord(value) ? value : null
-  } catch {
-    return null
+function parseQueryOffset(value: unknown): number | null {
+  if (value === undefined) {
+    return 0
   }
+  const offset = Number(value)
+  return Number.isInteger(offset) && offset >= 0 && offset <= MAX_QUERY_OFFSET
+    ? offset
+    : null
+}
+
+function jsonReadError(error: "invalid" | "too-large"): Response {
+  return error === "too-large"
+    ? jsonError(`JSON 请求体不能超过 ${MAX_JSON_BODY_SIZE / 1024} KiB`, 413)
+    : jsonError("请求格式错误", 400)
+}
+
+function accessDeniedResponse(): Response {
+  return jsonError("Cloudflare Access 身份验证无效或已过期", 403)
 }
 
 function uploadBatchError(message: string): Response {

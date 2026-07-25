@@ -6,7 +6,8 @@
   "compatibility_flags": [
     "nodejs_compat"
   ],
-  "workers_dev": true,
+  "workers_dev": false,
+  "preview_urls": false,
   "routes": [
     {
       "pattern": "yaju-pic-tool.guestliang.icu",
@@ -22,15 +23,10 @@
     ]
   },
   "vars": {
+    "CF_ACCESS_AUD": "f6cf03c3c2a60b22eea79e3be13f82fc7cf8fb00948e6433c8ce323c575073fa",
+    "CF_ACCESS_TEAM_DOMAIN": "https://guestliang.cloudflareaccess.com",
     "R2_PUBLIC_BASE_URL": "https://yaju-pic.guestliang.icu",
-    "SITE_TIME_ZONE": "Asia/Shanghai",
-    "TURNSTILE_SITE_KEY": "0x4AAAAAADVJiTpSvp2Bjq9A"
-  },
-  "secrets": {
-    "required": [
-      "TURNSTILE_SECRET_KEY",
-      "UPLOAD_YAJU_PIC_SECRET"
-    ]
+    "SITE_TIME_ZONE": "Asia/Shanghai"
   },
   "d1_databases": [
     {
