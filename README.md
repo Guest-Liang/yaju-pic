@@ -1,5 +1,8 @@
 # yaju-pic
 
+地址：  
+https://yaju-pic-tool.guestliang.icu/
+
 鸦居老师图片查询工具。前端使用 Vue 3 + TypeScript，后端使用Cloudflare Worker + TypeScript，静态资源、API、D1 与 R2 由同一个 Worker部署。
 
 ## 目录
