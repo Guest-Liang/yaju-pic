@@ -1,6 +1,5 @@
 :root {
   color: #253234;
-  background: #edf2f0;
   font-family:
     Inter, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
     "Noto Sans CJK SC", sans-serif;
@@ -32,6 +31,8 @@
   --radius-xl: 30px;
   --radius: 22px;
   --radius-small: 14px;
+  --page-top-gap: 16px;
+  --page-bottom-gap: 36px;
   --shadow:
     0 20px 50px rgba(35, 61, 62, 0.1),
     0 3px 12px rgba(35, 61, 62, 0.05);
@@ -47,20 +48,21 @@
 html {
   min-width: 320px;
   min-height: 100%;
-  background: var(--paper);
-}
-
-body {
-  min-width: 320px;
-  min-height: 100vh;
-  margin: 0;
-  color: var(--ink);
   background:
     radial-gradient(circle at 8% 4%, rgba(91, 154, 147, 0.2), transparent 31rem),
     radial-gradient(circle at 92% 16%, rgba(220, 158, 130, 0.17), transparent 30rem),
     radial-gradient(circle at 56% 100%, rgba(105, 160, 171, 0.12), transparent 34rem),
     linear-gradient(145deg, #f5f8f6 0%, #e9efed 50%, #f3efeb 100%);
   background-attachment: fixed;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  padding: var(--page-top-gap) 0 var(--page-bottom-gap);
+  color: var(--ink);
+  background: transparent;
 }
 
 button,
@@ -91,8 +93,10 @@ summary:focus-visible {
 
 .site-shell {
   width: min(calc(100% - 32px), var(--page-width));
-  min-height: 100vh;
-  margin: 0 auto 36px;
+  min-height: calc(
+    100vh - var(--page-top-gap) - var(--page-bottom-gap)
+  );
+  margin: 0 auto;
 }
 
 .site-header,
@@ -112,8 +116,7 @@ summary:focus-visible {
   position: relative;
   z-index: 30;
   overflow: hidden;
-  border-top: 0;
-  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+  border-radius: var(--radius-xl);
 }
 
 .profile-bar {
@@ -1562,9 +1565,13 @@ h1 {
 }
 
 @media (max-width: 800px) {
+  :root {
+    --page-top-gap: 10px;
+    --page-bottom-gap: 20px;
+  }
+
   .site-shell {
     width: min(calc(100% - 20px), var(--page-width));
-    margin-top: 0;
   }
 
   .profile-bar {
@@ -1619,7 +1626,7 @@ h1 {
 
 @media (max-width: 560px) {
   .site-header {
-    border-radius: 0 0 22px 22px;
+    border-radius: 22px;
   }
 
   .profile-bar-label {
