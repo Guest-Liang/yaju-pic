@@ -483,7 +483,8 @@ onMounted(() => {
           </div>
 
           <p class="check-copy">
-            分批读取 D1 图片记录，并确认 R2 中存在对应对象。检查不会修改或删除数据。
+            分批读取 D1 图片记录，并确认 R2
+            中存在对应对象。检查不会修改或删除数据。
           </p>
           <button
             type="button"
