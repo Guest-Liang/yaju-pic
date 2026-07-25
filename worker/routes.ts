@@ -2,7 +2,6 @@ import { handleUploadAuth, requireUploadSession } from "./auth"
 import {
   countPictureRecords,
   getPictureDateRange,
-  getTagSuggestions,
   insertPicture,
   listPictureRecords,
   queryPictures,
@@ -25,6 +24,7 @@ import {
   uploadObject,
 } from "./r2"
 import { jsonError, jsonResponse, redirectResponse } from "./responses"
+import { getTagSuggestions } from "./tags"
 import { isRecord, stringValue, type ObjectCheckResult } from "./types"
 
 const MAX_REQUEST_SIZE = MAX_UPLOAD_SIZE + 1024 * 1024
@@ -37,10 +37,8 @@ export async function handleRequest(
   const { pathname } = url
 
   if (request.method === "GET" && pathname === "/api/site-config") {
-    const [range, tags] = await Promise.all([
-      getPictureDateRange(env),
-      getTagSuggestions(env),
-    ])
+    const range = await getPictureDateRange(env)
+    const tags = getTagSuggestions()
     return jsonResponse(
       {
         ok: true,

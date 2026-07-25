@@ -33,7 +33,7 @@ const options = computed(() => {
   ) {
     matching.unshift(query)
   }
-  return matching.slice(0, 80)
+  return matching
 })
 
 const activeDescendant = computed(() =>

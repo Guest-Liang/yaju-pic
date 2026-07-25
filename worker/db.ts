@@ -1,4 +1,3 @@
-import { buildTagSuggestions } from "./tags"
 import type {
   PictureDateRange,
   PictureInsert,
@@ -7,6 +6,11 @@ import type {
 } from "./types"
 
 const PICTURES_TABLE = "pictures"
+const SEARCHABLE_PICTURE_NAME = `replace(
+  replace(name, '(', '（'),
+  ')',
+  '）'
+)`
 
 const PICTURE_COLUMNS = `
   id, name, url, size, width, height, ratio,
@@ -15,10 +19,6 @@ const PICTURE_COLUMNS = `
   big_res, small_res, mid_res,
   bjn
 `
-
-interface PictureName {
-  name: string
-}
 
 interface CountResult {
   count: number | string
@@ -45,16 +45,6 @@ export async function getPictureDateRange(env: Env): Promise<PictureDateRange> {
       endDate: null,
       total: 0,
     }
-  )
-}
-
-export async function getTagSuggestions(env: Env): Promise<string[]> {
-  const raw = await env.yaju_pic_db
-    .prepare(`SELECT name FROM ${PICTURES_TABLE} ORDER BY id DESC`)
-    .all<PictureName>()
-
-  return buildTagSuggestions(
-    (raw.results ?? []).map((record) => record.name).filter(Boolean),
   )
 }
 
@@ -96,15 +86,17 @@ export async function queryPictures(
       .filter(Boolean)
 
     for (const tag of tags) {
-      const escapedTag = escapeLikeValue(tag)
+      const escapedTag = escapeLikeValue(normalizeTagForSearch(tag))
       conditions.push(`(
-        name LIKE ? ESCAPE '\\' OR
-        name LIKE ? ESCAPE '\\' OR
-        name LIKE ? ESCAPE '\\'
+        ${SEARCHABLE_PICTURE_NAME} LIKE ? ESCAPE '\\' OR
+        ${SEARCHABLE_PICTURE_NAME} LIKE ? ESCAPE '\\' OR
+        ${SEARCHABLE_PICTURE_NAME} LIKE ? ESCAPE '\\' OR
+        ${SEARCHABLE_PICTURE_NAME} LIKE ? ESCAPE '\\'
       )`)
       params.push(`%\\_${escapedTag}%`)
       params.push(`%&${escapedTag}&%`)
       params.push(`%${escapedTag}\\_%`)
+      params.push(`%（${escapedTag}）%`)
     }
   }
 
@@ -212,6 +204,10 @@ function parseOrientation(rawOrientation: string): string[] {
 
 function escapeLikeValue(value: string): string {
   return value.replace(/[\\%_]/gu, (match) => `\\${match}`)
+}
+
+function normalizeTagForSearch(value: string): string {
+  return value.replaceAll("(", "（").replaceAll(")", "）")
 }
 
 function safeDecodeURIComponent(value: string): string {
