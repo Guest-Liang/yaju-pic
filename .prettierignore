@@ -1,0 +1,6 @@
+worker-configuration.d.ts
+dist/
+node_modules/
+.wrangler/
+.playwright-cli/
+output/
