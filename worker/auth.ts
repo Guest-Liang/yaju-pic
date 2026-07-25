@@ -186,7 +186,7 @@ async function secureStringEqual(
 }
 
 function getCookie(cookieHeader: string, name: string): string {
-  for (const part of cookieHeader.split("")) {
+  for (const part of cookieHeader.split(";")) {
     const trimmed = part.trim()
     if (trimmed.startsWith(`${name}=`)) {
       return trimmed.slice(name.length + 1)
