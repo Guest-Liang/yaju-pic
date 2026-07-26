@@ -360,10 +360,19 @@ onMounted(() => {
 <template>
   <div class="site-shell">
     <SiteHeader>
-      <a class="header-action" href="/">
-        返回查询
-        <span aria-hidden="true">←</span>
-      </a>
+      <div class="header-actions">
+        <a class="header-action" href="/">
+          返回查询
+          <span aria-hidden="true">←</span>
+        </a>
+        <a
+          class="header-action header-action-logout"
+          href="/cdn-cgi/access/logout"
+        >
+          退出登录
+          <span aria-hidden="true">↗</span>
+        </a>
+      </div>
     </SiteHeader>
 
     <main>

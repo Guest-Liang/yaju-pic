@@ -238,7 +238,7 @@ onMounted(() => {
             v-if="!hasSearched"
             class="result-placeholder result-placeholder-plain"
           >
-            <p>选择左侧条件开始查询</p>
+            <p>选择条件开始查询</p>
           </div>
           <div
             v-else-if="!querying && !results.length"

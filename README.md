@@ -20,6 +20,8 @@ wrangler.jsonc          Worker、域名、Access、D1、R2 与静态资源配置
 vite.config.ts          Vue + Cloudflare Vite 构建配置
 ```
 
+上传页的“退出登录”会访问同域 `/cdn-cgi/access/logout`，主动撤销当前 Cloudflare Access 会话。
+
 ## Cloudflare Workers Builds
 
 项目要求 Node.js `>=24.18.0`、npm `>=12.0.0`，并用 `packageManager` 固定 npm `12.0.1`。Cloudflare 构建镜像自带的 npm 版本可能较旧，因此 Worker 构建设置使用：
