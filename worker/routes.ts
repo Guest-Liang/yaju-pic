@@ -42,24 +42,17 @@ export async function handleRequest(
   if (request.method === "GET" && pathname === "/api/site-config") {
     const range = await getPictureDateRange(env)
     const tags = getTagSuggestions()
-    return jsonResponse(
-      {
-        ok: true,
-        range,
-        tags,
-        upload: {
-          maxFiles: MAX_UPLOAD_COUNT,
-          maxFileSize: MAX_FILE_SIZE,
-          maxTotalSize: MAX_UPLOAD_SIZE,
-          allowedTypes: ["image/png", "image/jpeg", "image/webp", "image/gif"],
-        },
+    return jsonResponse({
+      ok: true,
+      range,
+      tags,
+      upload: {
+        maxFiles: MAX_UPLOAD_COUNT,
+        maxFileSize: MAX_FILE_SIZE,
+        maxTotalSize: MAX_UPLOAD_SIZE,
+        allowedTypes: ["image/png", "image/jpeg", "image/webp", "image/gif"],
       },
-      {
-        headers: {
-          "Cache-Control": "private, max-age=300",
-        },
-      },
-    )
+    })
   }
 
   if (request.method === "POST" && pathname === "/api/latest-picture") {
