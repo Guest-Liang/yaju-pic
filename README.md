@@ -24,15 +24,41 @@ vite.config.ts          Vue + Cloudflare Vite 构建配置
 
 ## Cloudflare Workers Builds
 
-项目要求 Node.js `>=24.18.0`、npm `>=12.0.0`，并用 `packageManager` 固定 npm `12.0.1`。Cloudflare 构建镜像自带的 npm 版本可能较旧，因此 Worker 构建设置使用：
+项目要求 Node.js `>=24.21.0`、npm `>=12.0.0`。构建使用的 Node.js 版本由 `.node-version` 指定，当前为 `24.21.0`；npm 版本由 `package.json` 的 `packageManager` 指定，当前为 `npm@12.2.0`。
 
-```text
-构建变量
-SKIP_DEPENDENCY_INSTALL=1
+Worker 的 `compatibility_date` 在 `wrangler.jsonc` 中设为 `2026-10-06`。它控制 Cloudflare 运行时的兼容行为，与构建时使用的 Node.js 版本分别配置。
 
-构建命令
-npx --yes npm@12.0.1 clean-install --progress=false && npx --yes npm@12.0.1 run format:check && npx --yes npm@12.0.1 run build
+Cloudflare 构建镜像自带的 npm 版本可能较旧，因此以下命令会先读取仓库中的 `packageManager`，再通过 `npx` 使用指定版本的 npm。`packageManager` 字段本身不会替换构建镜像中的 npm。
 
-部署命令
-npx --yes npm@12.0.1 exec -- wrangler deploy
+### 后台配置一次
+
+在 Worker 的「设置 → 构建」中设置：
+
+| 配置项 | 值 |
+| --- | --- |
+| 生产分支 | `main` |
+| 根目录 | `/` |
+| 构建变量 | `SKIP_DEPENDENCY_INSTALL=1` |
+
+构建命令：
+
+```sh
+npx --yes "$(node -p "require('./package.json').packageManager")" run ci:build
 ```
+
+部署命令：
+
+```sh
+npx --yes "$(node -p "require('./package.json').packageManager")" run deploy
+```
+
+### 仓库中维护
+
+| 要修改的内容 | 修改位置 |
+| --- | --- |
+| npm 版本 | `package.json` → `packageManager` |
+| Node.js 构建版本 | `.node-version`（后台如有 `NODE_VERSION` 覆盖值，也需同步或移除） |
+| 安装、检查和构建步骤 | `package.json` → `scripts.ci:build` 及其调用的脚本 |
+| 部署命令或参数 | `package.json` → `scripts.deploy` |
+| 应用依赖 | `package.json` 和 `package-lock.json` |
+| Worker、域名及 D1/R2 绑定 | `wrangler.jsonc` |
