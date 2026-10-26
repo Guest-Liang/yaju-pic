@@ -63,11 +63,14 @@ export async function queryPictures(
   }
 
   const limit = Number(page.limit)
+  const total = Number(page.total)
   const nextOffset = page.done ? null : Number(page.nextOffset)
   if (
     page.offset !== offset ||
     !Number.isInteger(limit) ||
     limit <= 0 ||
+    !Number.isInteger(total) ||
+    total < 0 ||
     page.items.length > limit ||
     (nextOffset !== null &&
       (!Number.isInteger(nextOffset) ||
@@ -78,6 +81,7 @@ export async function queryPictures(
   }
   return {
     items: page.items.map(parsePicture),
+    total,
     offset,
     limit,
     done: page.done,

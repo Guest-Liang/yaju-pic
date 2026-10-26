@@ -35,6 +35,7 @@ interface CountResult {
 type QueryResult =
   | {
       results: PictureRecord[]
+      total: number
       done: boolean
       error?: never
       status?: never
@@ -136,21 +137,28 @@ export async function queryPictures(
     return { error: "请指定查询内容", status: 400 }
   }
 
+  const where = conditions.join(" AND ")
+  const count = await env.yaju_pic_db
+    .prepare(`SELECT COUNT(*) AS count FROM ${PICTURES_TABLE} WHERE ${where}`)
+    .bind(...params)
+    .first<CountResult>()
+  const total = Number(count?.count ?? 0)
+
   const query = `SELECT ${PICTURE_COLUMNS}
     FROM ${PICTURES_TABLE}
-    WHERE ${conditions.join(" AND ")}
+    WHERE ${where}
     ORDER BY substr(name, 1, 10) DESC, id DESC
     LIMIT ? OFFSET ?`
-  params.push(QUERY_PAGE_SIZE + 1, offset)
   const raw = await env.yaju_pic_db
     .prepare(query)
-    .bind(...params)
+    .bind(...params, QUERY_PAGE_SIZE, offset)
     .all<PictureRecord>()
 
   const page = raw.results ?? []
   return {
-    results: page.slice(0, QUERY_PAGE_SIZE),
-    done: page.length <= QUERY_PAGE_SIZE,
+    results: page,
+    total,
+    done: offset + page.length >= total,
   }
 }
 

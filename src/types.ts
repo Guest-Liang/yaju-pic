@@ -45,6 +45,7 @@ export interface PictureQuery {
 
 export interface PicturePage {
   items: Picture[]
+  total: number
   offset: number
   limit: number
   done: boolean

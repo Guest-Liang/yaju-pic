@@ -93,6 +93,7 @@ export async function handleRequest(
     }
     return jsonResponse({
       items: result.results,
+      total: result.total,
       offset,
       limit: QUERY_PAGE_SIZE,
       done: result.done,

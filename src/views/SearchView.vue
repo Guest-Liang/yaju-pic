@@ -44,6 +44,9 @@ const dateError = computed(() =>
 const pageNumber = computed(
   () => Math.floor((page.value?.offset ?? 0) / QUERY_PAGE_SIZE) + 1,
 )
+const totalPages = computed(() =>
+  page.value ? Math.ceil(page.value.total / page.value.limit) : 0,
+)
 const recentRanges = [
   { label: "最近 7 天", days: 7 },
   { label: "最近 15 天", days: 15 },
@@ -163,7 +166,7 @@ async function loadPage(offset: number, scroll = false): Promise<void> {
     if (sequence !== querySequence) return
     page.value = payload
     if (payload.items.length) {
-      queryStatus.value = `第 ${pageNumber.value} 页 · 显示第 ${offset + 1}–${offset + payload.items.length} 张`
+      queryStatus.value = `第 ${pageNumber.value} / ${totalPages.value} 页 · 显示第 ${offset + 1}–${offset + payload.items.length} 张`
       queryTone.value = "success"
     } else {
       queryStatus.value = offset ? "这一页没有更多图片" : "没有符合条件的图片"
@@ -338,9 +341,9 @@ onBeforeUnmount(() => {
               <div>
                 <h2 id="results-title">查询结果</h2>
                 <p>
-                  每页 {{ QUERY_PAGE_SIZE }} 张<span v-if="page">
-                    · 本页 {{ results.length }} 张</span
-                  >
+                  <span v-if="page"
+                    >共 {{ page.total }} 张 · 共 {{ totalPages }} 页 · </span
+                  >每页 {{ QUERY_PAGE_SIZE }} 张
                 </p>
               </div>
             </div>
@@ -406,7 +409,7 @@ onBeforeUnmount(() => {
               上一页
             </button>
             <span
-              >第 {{ pageNumber }} 页<span v-if="page.done">
+              >第 {{ pageNumber }} / {{ totalPages }} 页<span v-if="page.done">
                 · 已到末页</span
               ></span
             >
