@@ -30,9 +30,11 @@ vite.config.ts          Vue + Cloudflare Vite 构建配置
 
 ## Cloudflare Workers Builds
 
-项目使用 Node.js `24.22.1` 构建；允许的 Node.js 版本为 `^24.22.1 || ^26.12.1`，npm 要求 `>=12.0.0`。构建使用的 Node.js 版本由 `.node-version` 指定，当前为 `24.22.1`；npm 版本由 `package.json` 的 `packageManager` 指定，当前为 `npm@12.2.0`。
+项目使用 Node.js `24.22.1` 构建；允许的 Node.js 版本为 `^24.22.1 || ^26.12.1`，npm 要求 `>=12.0.0`。构建使用的 Node.js 版本由 `.node-version` 指定，当前为 `24.22.1`；npm 版本由 `package.json` 的 `packageManager` 指定，当前为 `npm@12.2.1`。
 
 项目通过 `.npmrc` 的 `engine-strict=true` 在安装依赖时检查 Node.js 和 npm 版本，拒绝不符合上述范围的工具链。
+
+`package.json` 暂时通过 `overrides` 将间接依赖 `undici` 固定为 `7.30.1`，修复 CVE-2026-109869。待 Cloudflare Vite 插件及其依赖链都使用已修复版本后，可移除这项覆盖。
 
 Worker 的 `compatibility_date` 在 `wrangler.jsonc` 中设为 `2026-10-06`。它控制 Cloudflare 运行时的兼容行为，与构建时使用的 Node.js 版本分别配置。
 
