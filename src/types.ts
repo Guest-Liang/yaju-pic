@@ -43,6 +43,14 @@ export interface PictureQuery {
   orientation?: "landscape" | "portrait"
 }
 
+export interface PicturePage {
+  items: Picture[]
+  offset: number
+  limit: number
+  done: boolean
+  nextOffset: number | null
+}
+
 export interface UploadItemResult {
   fileName: string
   name?: string

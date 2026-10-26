@@ -1,3 +1,10 @@
+import {
+  MAX_QUERY_TAGS,
+  MAX_TAG_LENGTH,
+  parseQueryTags,
+  QUERY_PAGE_SIZE,
+  validateDateRange,
+} from "../shared/query"
 import type {
   PictureDateRange,
   PictureInsert,
@@ -6,8 +13,7 @@ import type {
 } from "./types"
 
 const PICTURES_TABLE = "pictures"
-export const QUERY_PAGE_SIZE = 50
-const MAX_TAG_LENGTH = 32
+export { QUERY_PAGE_SIZE } from "../shared/query"
 const SEARCHABLE_PICTURE_NAME = `replace(
   replace(name, '(', '（'),
   ')',
@@ -75,6 +81,9 @@ export async function queryPictures(
     return { error: "请指定查询内容", status: 400 }
   }
 
+  const dateError = validateDateRange(startDate, endDate)
+  if (dateError) return { error: dateError, status: 400 }
+
   const conditions: string[] = []
   const params: Array<string | number> = []
 
@@ -89,10 +98,11 @@ export async function queryPictures(
   }
 
   if (rawTag) {
-    const tags = safeDecodeURIComponent(rawTag.trim())
-      .split(",")
-      .map((tag) => tag.trim())
-      .filter(Boolean)
+    const tags = parseQueryTags(rawTag)
+
+    if (tags.length > MAX_QUERY_TAGS) {
+      return { error: `最多同时查询 ${MAX_QUERY_TAGS} 个关键词`, status: 400 }
+    }
 
     if (tags.some((tag) => [...tag].length > MAX_TAG_LENGTH)) {
       return {

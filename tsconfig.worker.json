@@ -23,6 +23,7 @@
   "include": [
     "worker/**/*.ts",
     "shared/**/*.json",
+    "shared/**/*.ts",
     "worker-configuration.d.ts"
   ]
 }

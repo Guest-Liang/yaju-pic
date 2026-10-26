@@ -1,15 +1,23 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue"
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue"
+import {
+  MAX_QUERY_TAGS,
+  parseQueryTags,
+  QUERY_PAGE_SIZE,
+  recentDateRange,
+  validateDateRange,
+} from "../../shared/query"
 import DatePicker from "../components/DatePicker.vue"
+import PictureGrid from "../components/PictureGrid.vue"
 import SiteHeader from "../components/SiteHeader.vue"
 import TagPicker from "../components/TagPicker.vue"
 import { fetchSiteConfig, queryPictures } from "../lib/api"
-import {
-  formatBytes,
-  pictureOrientation,
-  pictureResolution,
-} from "../lib/format"
-import type { Picture, PictureQuery, SiteConfig, StatusTone } from "../types"
+import type {
+  PicturePage,
+  PictureQuery,
+  SiteConfig,
+  StatusTone,
+} from "../types"
 
 const config = ref<SiteConfig | null>(null)
 const configStatus = ref("正在读取归档信息…")
@@ -18,12 +26,43 @@ const endDate = ref("")
 const selectedTags = ref<string[]>([])
 const landscape = ref(false)
 const portrait = ref(false)
-const results = ref<Picture[]>([])
+const page = ref<PicturePage | null>(null)
+const results = computed(() => page.value?.items ?? [])
+const submittedQuery = ref<PictureQuery | null>(null)
+const resultsPanel = ref<HTMLElement | null>(null)
+const failedOffset = ref<number | null>(null)
 const hasSearched = ref(false)
 const querying = ref(false)
 const queryStatus = ref("")
 const queryTone = ref<StatusTone>("idle")
 let configRequest: Promise<void> | null = null
+let queryController: AbortController | null = null
+let querySequence = 0
+const dateError = computed(() =>
+  validateDateRange(startDate.value, endDate.value),
+)
+const pageNumber = computed(
+  () => Math.floor((page.value?.offset ?? 0) / QUERY_PAGE_SIZE) + 1,
+)
+const recentRanges = [
+  { label: "最近 7 天", days: 7 },
+  { label: "最近 15 天", days: 15 },
+  { label: "最近一个月", days: 30 },
+] as const
+const selectedRecent = computed(
+  () =>
+    recentRanges.find(({ days }) => {
+      const range = recentDateRange(days)
+      return (
+        range.startDate === startDate.value && range.endDate === endDate.value
+      )
+    })?.days,
+)
+const queryChanged = computed(
+  () =>
+    submittedQuery.value &&
+    JSON.stringify(buildQuery()) !== JSON.stringify(submittedQuery.value),
+)
 
 const rangeText = computed(() => {
   const range = config.value?.range
@@ -57,7 +96,7 @@ async function loadConfig(): Promise<void> {
   await configRequest
 }
 
-async function submitQuery(): Promise<void> {
+function buildQuery(): PictureQuery {
   const query: PictureQuery = {}
   if (startDate.value) {
     query.startDate = startDate.value
@@ -71,6 +110,27 @@ async function submitQuery(): Promise<void> {
   if (orientation.value) {
     query.orientation = orientation.value
   }
+  return query
+}
+
+function chooseRecent(days: 7 | 15 | 30): void {
+  const range = recentDateRange(days)
+  startDate.value = range.startDate
+  endDate.value = range.endDate
+}
+
+async function submitQuery(): Promise<void> {
+  const query = buildQuery()
+  const error =
+    dateError.value ||
+    (parseQueryTags(query.tag ?? "").length > MAX_QUERY_TAGS
+      ? `最多同时查询 ${MAX_QUERY_TAGS} 个关键词`
+      : null)
+  if (error) {
+    queryStatus.value = error
+    queryTone.value = "error"
+    return
+  }
 
   if (!Object.keys(query).length) {
     queryStatus.value = "请至少选择一项查询条件"
@@ -78,49 +138,83 @@ async function submitQuery(): Promise<void> {
     return
   }
 
-  querying.value = true
+  submittedQuery.value = query
+  page.value = null
   hasSearched.value = true
-  queryStatus.value = "查询中…"
+  await loadPage(0)
+}
+
+async function loadPage(offset: number, scroll = false): Promise<void> {
+  if (!submittedQuery.value) return
+  queryController?.abort()
+  const sequence = ++querySequence
+  const controller = new AbortController()
+  queryController = controller
+  querying.value = true
+  failedOffset.value = null
+  queryStatus.value = `正在读取第 ${Math.floor(offset / QUERY_PAGE_SIZE) + 1} 页…`
   queryTone.value = "progress"
-  results.value = []
   try {
-    const payload = await queryPictures(query)
-    results.value = payload
-    if (payload.length) {
-      queryStatus.value = `找到 ${payload.length} 条记录`
+    const payload = await queryPictures(
+      submittedQuery.value,
+      offset,
+      controller.signal,
+    )
+    if (sequence !== querySequence) return
+    page.value = payload
+    if (payload.items.length) {
+      queryStatus.value = `第 ${pageNumber.value} 页 · 显示第 ${offset + 1}–${offset + payload.items.length} 张`
       queryTone.value = "success"
     } else {
-      queryStatus.value = "没有符合条件的图片"
+      queryStatus.value = offset ? "这一页没有更多图片" : "没有符合条件的图片"
       queryTone.value = "idle"
     }
+    if (scroll) {
+      await nextTick()
+      if (sequence === querySequence)
+        resultsPanel.value?.scrollIntoView({
+          block: "start",
+          behavior: "smooth",
+        })
+    }
   } catch (error) {
+    if (sequence !== querySequence || controller.signal.aborted) return
+    failedOffset.value = offset
     queryStatus.value = error instanceof Error ? error.message : "查询失败"
     queryTone.value = "error"
   } finally {
-    querying.value = false
+    if (sequence === querySequence) {
+      querying.value = false
+      queryController = null
+    }
   }
 }
 
 function clearQuery(): void {
+  queryController?.abort()
+  queryController = null
+  querySequence += 1
+  querying.value = false
+  submittedQuery.value = null
+  page.value = null
+  failedOffset.value = null
   startDate.value = ""
   endDate.value = ""
   selectedTags.value = []
   landscape.value = false
   portrait.value = false
-  results.value = []
   hasSearched.value = false
   queryStatus.value = ""
   queryTone.value = "idle"
 }
 
-function hideBrokenImage(event: Event): void {
-  if (event.currentTarget instanceof HTMLImageElement) {
-    event.currentTarget.hidden = true
-  }
-}
-
 onMounted(() => {
   void loadConfig()
+})
+
+onBeforeUnmount(() => {
+  queryController?.abort()
+  querySequence += 1
 })
 </script>
 
@@ -170,6 +264,23 @@ onMounted(() => {
                 <DatePicker v-model="endDate" label="结束日期" />
               </label>
             </div>
+            <div class="date-shortcuts" role="group" aria-label="快捷日期范围">
+              <button
+                v-for="range in recentRanges"
+                :key="range.days"
+                type="button"
+                :aria-pressed="selectedRecent === range.days"
+                @click="chooseRecent(range.days)"
+              >
+                {{ range.label }}
+              </button>
+            </div>
+            <p class="field-help">
+              快捷范围包含今天；最近一个月按 30 天计算。也可只选开始或结束日期。
+            </p>
+            <p v-if="dateError" class="field-help status-error" role="alert">
+              {{ dateError }}
+            </p>
           </fieldset>
 
           <fieldset class="filter-section">
@@ -215,13 +326,22 @@ onMounted(() => {
           </div>
         </form>
 
-        <section class="results-panel" aria-labelledby="results-title">
+        <section
+          ref="resultsPanel"
+          class="results-panel"
+          aria-labelledby="results-title"
+          :aria-busy="querying"
+        >
           <div class="results-heading">
             <div class="panel-heading">
               <span class="panel-index">02</span>
               <div>
                 <h2 id="results-title">查询结果</h2>
-                <p>{{ results.length }} items</p>
+                <p>
+                  每页 {{ QUERY_PAGE_SIZE }} 张<span v-if="page">
+                    · 本页 {{ results.length }} 张</span
+                  >
+                </p>
               </div>
             </div>
             <p
@@ -233,6 +353,18 @@ onMounted(() => {
               {{ queryStatus }}
             </p>
           </div>
+
+          <p v-if="queryChanged" class="field-help">
+            筛选条件已更改，点击“开始查询”后生效。
+          </p>
+          <button
+            v-if="failedOffset !== null && !querying"
+            class="button button-secondary query-retry"
+            type="button"
+            @click="loadPage(failedOffset)"
+          >
+            重试这一页
+          </button>
 
           <div
             v-if="!hasSearched"
@@ -247,54 +379,48 @@ onMounted(() => {
             <p>{{ queryStatus || "没有查询结果" }}</p>
           </div>
 
-          <ol v-else class="result-grid">
-            <li
-              v-for="(picture, index) in results"
-              :key="picture.id || picture.url"
+          <div
+            v-else-if="querying && !results.length"
+            class="result-placeholder"
+          >
+            <p>正在读取图片…</p>
+          </div>
+          <PictureGrid
+            v-if="results.length"
+            :pictures="results"
+            :offset="page?.offset ?? 0"
+          />
+          <nav
+            v-if="page && (results.length || page.offset > 0)"
+            class="pagination"
+            aria-label="查询结果分页"
+          >
+            <button
+              type="button"
+              class="button button-secondary"
+              :disabled="querying || page.offset === 0"
+              @click="
+                loadPage(Math.max(0, page.offset - QUERY_PAGE_SIZE), true)
+              "
             >
-              <a
-                class="picture-card"
-                :href="picture.url"
-                target="_blank"
-                rel="noreferrer"
-              >
-                <div class="picture-preview">
-                  <img
-                    :src="picture.url"
-                    :alt="picture.name"
-                    loading="lazy"
-                    decoding="async"
-                    @error="hideBrokenImage"
-                  />
-                  <span>{{ String(index + 1).padStart(3, "0") }}</span>
-                </div>
-                <div class="picture-body">
-                  <h3>{{ picture.name }}</h3>
-                  <dl class="picture-meta">
-                    <div>
-                      <dt>尺寸</dt>
-                      <dd>{{ picture.width }} × {{ picture.height }}</dd>
-                    </div>
-                    <div>
-                      <dt>比例</dt>
-                      <dd>{{ picture.ratio || "—" }}</dd>
-                    </div>
-                    <div>
-                      <dt>文件</dt>
-                      <dd>{{ formatBytes(picture.size) }}</dd>
-                    </div>
-                    <div>
-                      <dt>类型</dt>
-                      <dd>
-                        {{ pictureOrientation(picture) }} ·
-                        {{ pictureResolution(picture) }}
-                      </dd>
-                    </div>
-                  </dl>
-                </div>
-              </a>
-            </li>
-          </ol>
+              上一页
+            </button>
+            <span
+              >第 {{ pageNumber }} 页<span v-if="page.done">
+                · 已到末页</span
+              ></span
+            >
+            <button
+              type="button"
+              class="button"
+              :disabled="querying || page.nextOffset === null"
+              @click="
+                page.nextOffset !== null && loadPage(page.nextOffset, true)
+              "
+            >
+              下一页
+            </button>
+          </nav>
         </section>
       </section>
     </main>

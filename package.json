@@ -17,8 +17,8 @@
     "typecheck": "npm run typecheck:vue && npm run typecheck:native",
     "typecheck:vue": "vue-tsc -p tsconfig.app.json --noEmit",
     "typecheck:native": "tsc -p tsconfig.worker.json && tsc -p tsconfig.node.json",
-    "format": "prettier --write \"src/**/*.{ts,vue}\" \"worker/**/*.ts\" \"vite.config.ts\"",
-    "format:check": "prettier --check \"src/**/*.{ts,vue}\" \"worker/**/*.ts\" \"vite.config.ts\"",
+    "format": "prettier --write \"src/**/*.{ts,vue}\" \"worker/**/*.ts\" \"shared/**/*.ts\" \"vite.config.ts\"",
+    "format:check": "prettier --check \"src/**/*.{ts,vue}\" \"worker/**/*.ts\" \"shared/**/*.ts\" \"vite.config.ts\"",
     "cf:types": "wrangler types",
     "cf:types:check": "wrangler types --check"
   },

@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from "vue"
-
-const MAX_TAG_LENGTH = 32
+import { computed, nextTick, ref, watch } from "vue"
+import {
+  MAX_QUERY_TAGS,
+  MAX_TAG_LENGTH,
+  parseQueryTags,
+} from "../../shared/query"
 
 const props = defineProps<{
   modelValue: string[]
@@ -17,8 +20,22 @@ const inputNode = ref<HTMLInputElement | null>(null)
 const isOpen = ref(false)
 const activeIndex = ref(0)
 const isComposing = ref(false)
+const tagError = ref("")
+const limitReached = computed(() => props.modelValue.length >= MAX_QUERY_TAGS)
+
+watch(
+  () => props.modelValue,
+  (tags) => {
+    if (!tags.length) {
+      input.value = ""
+      tagError.value = ""
+      close()
+    }
+  },
+)
 
 const options = computed(() => {
+  if (limitReached.value) return []
   const query = input.value.trim()
   const normalizedQuery = normalize(query)
   const selected = new Set(props.modelValue)
@@ -49,6 +66,10 @@ function normalize(value: string): string {
 }
 
 function open(): void {
+  if (limitReached.value) {
+    close()
+    return
+  }
   if (!isOpen.value) {
     activeIndex.value = 0
   }
@@ -60,18 +81,30 @@ function close(): void {
 }
 
 function add(tag: string): void {
-  const cleaned = tag.trim()
-  if (!cleaned || props.modelValue.includes(cleaned)) {
+  const additions = [...new Set(parseQueryTags(tag))].filter(
+    (value) => !props.modelValue.includes(value),
+  )
+  if (!additions.length) return
+  if (props.modelValue.length + additions.length > MAX_QUERY_TAGS) {
+    tagError.value = `最多选择 ${MAX_QUERY_TAGS} 个关键词，请先移除一项`
     return
   }
-  emit("update:modelValue", [...props.modelValue, cleaned])
+  if (additions.some((value) => [...value].length > MAX_TAG_LENGTH)) {
+    tagError.value = `单个关键词最多 ${MAX_TAG_LENGTH} 字`
+    return
+  }
+  tagError.value = ""
+  emit("update:modelValue", [...props.modelValue, ...additions])
   input.value = ""
   activeIndex.value = 0
-  open()
-  void nextTick(() => inputNode.value?.focus())
+  void nextTick(() => {
+    open()
+    inputNode.value?.focus()
+  })
 }
 
 function remove(tag: string): void {
+  tagError.value = ""
   emit(
     "update:modelValue",
     props.modelValue.filter((item) => item !== tag),
@@ -79,10 +112,13 @@ function remove(tag: string): void {
 }
 
 function clear(): void {
+  tagError.value = ""
   emit("update:modelValue", [])
   input.value = ""
-  open()
-  void nextTick(() => inputNode.value?.focus())
+  void nextTick(() => {
+    open()
+    inputNode.value?.focus()
+  })
 }
 
 function moveActive(step: number): void {
@@ -186,13 +222,20 @@ function onBlur(): void {
           class="control tag-control"
           type="text"
           :maxlength="MAX_TAG_LENGTH"
+          :readonly="limitReached"
           role="combobox"
+          aria-label="关键词"
+          aria-describedby="tag-help"
           autocomplete="off"
           aria-autocomplete="list"
           :aria-expanded="isOpen"
           aria-controls="tag-options"
           :aria-activedescendant="activeDescendant"
-          placeholder="输入关键词，按 Enter 添加"
+          :placeholder="
+            limitReached
+              ? '已选满 5 个关键词，移除后可继续添加'
+              : '输入关键词，按 Enter 添加'
+          "
           @focus="open"
           @click="open"
           @input="onInput"
@@ -242,9 +285,12 @@ function onBlur(): void {
       </button>
     </div>
 
-    <p class="field-help">
-      单个关键词最多 32 字；多个关键词按 AND
-      查询。方向键选择，Backspace删除最后一项。
+    <p id="tag-help" class="field-help">
+      已选 {{ modelValue.length }} / {{ MAX_QUERY_TAGS }} 个；单个关键词最多 32
+      字；多个关键词按 AND 查询。方向键选择，Backspace删除最后一项。
+    </p>
+    <p v-if="tagError" class="field-help status-error" role="alert">
+      {{ tagError }}
     </p>
   </div>
 </template>

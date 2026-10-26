@@ -2,6 +2,7 @@ import type {
   ObjectCheckResult,
   Picture,
   PictureDateRange,
+  PicturePage,
   PictureQuery,
   SiteConfig,
   UploadCheckBatch,
@@ -36,40 +37,51 @@ export async function fetchSiteConfig(): Promise<SiteConfig> {
   }
 }
 
-export async function queryPictures(query: PictureQuery): Promise<Picture[]> {
-  const results: Picture[] = []
-  let offset = 0
+export async function queryPictures(
+  query: PictureQuery,
+  offset = 0,
+  signal?: AbortSignal,
+): Promise<PicturePage> {
+  const { response, payload } = await requestJson("/api/query-pic", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      ...query,
+      offset,
+    }),
+    signal,
+  })
+  if (!response.ok) {
+    throw responseError(payload, response.status, "查询失败")
+  }
 
-  while (true) {
-    const { response, payload } = await requestJson("/api/query-pic", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        ...query,
-        offset,
-      }),
-    })
-    if (!response.ok) {
-      throw responseError(payload, response.status, "查询失败")
-    }
+  const page = requireRecord(payload, "查询结果格式错误")
+  if (!Array.isArray(page.items) || typeof page.done !== "boolean") {
+    throw new ApiError("查询结果格式错误", 502)
+  }
 
-    const page = requireRecord(payload, "查询结果格式错误")
-    if (!Array.isArray(page.items) || typeof page.done !== "boolean") {
-      throw new ApiError("查询结果格式错误", 502)
-    }
-
-    results.push(...page.items.map(parsePicture))
-    if (page.done) {
-      return results
-    }
-
-    const nextOffset = Number(page.nextOffset)
-    if (!Number.isInteger(nextOffset) || nextOffset <= offset) {
-      throw new ApiError("查询分页信息格式错误", 502)
-    }
-    offset = nextOffset
+  const limit = Number(page.limit)
+  const nextOffset = page.done ? null : Number(page.nextOffset)
+  if (
+    page.offset !== offset ||
+    !Number.isInteger(limit) ||
+    limit <= 0 ||
+    page.items.length > limit ||
+    (nextOffset !== null &&
+      (!Number.isInteger(nextOffset) ||
+        nextOffset !== offset + page.items.length ||
+        nextOffset <= offset))
+  ) {
+    throw new ApiError("查询分页信息格式错误", 502)
+  }
+  return {
+    items: page.items.map(parsePicture),
+    offset,
+    limit,
+    done: page.done,
+    nextOffset,
   }
 }
 
